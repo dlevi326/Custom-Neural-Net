@@ -8,6 +8,9 @@ def sigmoid(num):
 def sigPrime(num):
     return sigmoid(num)*(1-sigmoid(num))
 
+def sigInverse(num):
+    return math.log(num/(1-num))
+
 def printWeights(weights):
     for w in weights:
         for ww in w:
@@ -17,6 +20,11 @@ def printWeights(weights):
 class Node(object):
     def __init__(self,initialValue):
         self.val = float(initialValue)
+        self.sigVal = (sigmoid(initialValue))
+
+    def changeVal(self,num):
+        self.val = float(num)
+        self.sigVal = (sigmoid(num))
 
 class neuralNet(object):
     def __init__(self,initialFile):
@@ -67,25 +75,68 @@ class neuralNet(object):
         y_data = [d[numFeatures:] for d in data[1:]]
 
         for _ in tqdm(range(epochs)):
+            totalLoss = 0
             for x,y in zip(x_data,y_data):
                 
                 # Forward propogation
                 for ind,node in enumerate(self.inputLayer[1:]):
-                    node.val = float(x[ind])
+                    node.changeVal(float(x[ind]))
 
                 for ind,node in enumerate(self.hiddenLayer[1:]):
                     newValue = 0
                     for ind2,w in enumerate(self.weights1[ind]):
                         newValue+=(w*self.inputLayer[ind2].val)
                         #print('newVal=',newValue)
-                    self.hiddenLayer[ind+1].val = sigmoid(newValue)
+                    self.hiddenLayer[ind+1].changeVal(newValue)
 
                 for ind,node in enumerate(self.outputLayer):
                     newValue = 0
                     for ind2,w in enumerate(self.weights2[ind]):
-                        newValue+=(w*self.hiddenLayer[ind2].val)
+                        newValue+=(w*self.hiddenLayer[ind2].sigVal)
                         #print('newVal=',newValue)
-                    self.outputLayer[ind].val = sigmoid(newValue)
+                    self.outputLayer[ind].changeVal(newValue)
+
+                
+                #print('y is:',y[0],'pred is:',self.outputLayer[0].sigVal)
+
+
+                # Back prop
+                lossOut = []
+                for ind,node in enumerate(self.outputLayer):
+                    #print('Evaluating:',y[ind],' - ',node.sigVal)
+                    currLoss = sigPrime(node.val)*(float(y[ind])-node.sigVal)
+                    lossOut.append(currLoss)
+
+                lossHidden = []
+                for ind,node in enumerate(self.hiddenLayer):
+                    currLossPrime = sigPrime(node.val)
+                    currLoss = 0
+                    for ind2,w in enumerate(self.weights2):
+                        currLoss+=(w[ind]*lossOut[ind2])
+                    lossHidden.append(currLoss*currLossPrime)
+
+                lossIn = []
+                for ind,node in enumerate(self.inputLayer):
+                    currLossPrime = sigPrime(node.val)
+                    currLoss = 0
+                    for ind2,w in enumerate(self.weights1):
+                        currLoss+=(w[ind]*lossHidden[ind2])
+                    lossIn.append(currLoss*currLossPrime)
+
+                totalLoss+=sum(lossIn)+sum(lossHidden)+sum(lossOut)
+                
+                for ind,w1 in enumerate(self.weights2):
+                    for ind2,w2 in enumerate(w1):
+                        self.weights2[ind][ind2] += LEARN_RATE*self.hiddenLayer[ind2].sigVal*lossOut[ind] 
+
+                for ind,w1 in enumerate(self.weights1):
+                    for ind2,w2 in enumerate(w1):
+                        self.weights1[ind][ind2] += LEARN_RATE*self.inputLayer[ind2].val*lossHidden[ind] 
+
+                #print('loss:',sum(lossIn)+sum(lossHidden)+sum(lossOut))
+                #print('loss:',sum(lossIn))
+            print('Loss:',totalLoss)
+
 
 
     def predict(self,testFile):
@@ -133,7 +184,7 @@ class neuralNet(object):
                     #print('newVal=',newValue)
                 self.outputLayer[ind].val = sigmoid(newValue)
 
-
+            
             predictions = [str(int(n.val/.5)) for n in self.outputLayer]
 
             #print('Real:',str(y))
@@ -167,6 +218,10 @@ class neuralNet(object):
 
 
 
-nn = neuralNet('./finalNetworkSable.txt')
-nn.train('./trainFile.txt',epochs=100,alpha=0.1)
+nn = neuralNet('./initialNetwork.txt')
+nn.train('./trainFile.txt',epochs=10,alpha=0.1)
 nn.predict('./testFile.txt')
+nn = neuralNet('./finalNetworkSable.txt')
+nn.train('./trainFile.txt',epochs=10,alpha=0.1)
+nn.predict('./testFile.txt')
+
